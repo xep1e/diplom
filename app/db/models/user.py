@@ -1,4 +1,4 @@
-
+# app/db/models/user.py
 from sqlalchemy import Column, Integer, String, Enum, Boolean
 from app.db.database import Base
 import enum
