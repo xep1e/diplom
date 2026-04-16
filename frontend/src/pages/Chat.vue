@@ -94,10 +94,18 @@ const openChat = async (chat) => {
   socket = new WebSocket(`ws://127.0.0.1:8000/ws/chat/${chat.id}?token=${token}`)
 
   socket.onmessage = (event) => {
-    const msg = JSON.parse(event.data)
-    messages.value.push(msg)
-    scrollDown()
+  const msg = JSON.parse(event.data)
+
+  messages.value.push(msg)
+
+  // 🔥 обновляем список чатов
+  const chat = chats.value.find(c => c.id === msg.chat_id)
+  if (chat) {
+    chat.last_message = msg.text
   }
+
+  scrollDown()
+}
 }
 
 // 🔥 отправка

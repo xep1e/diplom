@@ -57,3 +57,6 @@ def save_message(db: Session, chat_id: int, client_id: int, text: str):
     )
     db.add(msg)
     db.commit()
+    db.refresh(msg)
+
+    return msg  # 🔥 ВАЖНО
