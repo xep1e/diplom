@@ -1,45 +1,60 @@
 <template>
   <div class="form-container">
-    <h1>Регистрация оператора</h1>
-    <form @submit.prevent="register">
+    <h1>Регистрация</h1>
+
+    <form @submit.prevent="registerUser">
       <input type="text" placeholder="Логин" v-model="username" />
       <input type="password" placeholder="Пароль" v-model="password" />
       <button type="submit">Зарегистрироваться</button>
     </form>
+
+    <p>
+      Уже есть аккаунт?
+      <button @click="goLogin" class="link-button">
+        Войти
+      </button>
+    </p>
   </div>
 </template>
 
 <script>
 import '/style/form.css'
-import { createUser, fetchUsers } from '../api/userApi.js'
+import { register } from '../api/userApi'
+import { useRouter } from 'vue-router'
 
 export default {
+  setup() {
+    const router = useRouter()
+
+    const goLogin = () => {
+      router.push('/login')
+    }
+
+    return { router, goLogin }
+  },
+
   data() {
     return {
       username: '',
       password: ''
     }
   },
-  async mounted() {
-    const users = await fetchUsers()
-    console.log(users)
-  },
+
   methods: {
-    async register() {
+    async registerUser() {
       if (!this.username || !this.password) {
-        alert('Введите логин и пароль')
+        alert("Введите логин и пароль")
         return
       }
+
       try {
-        const user = await createUser(this.username, this.password)
-        console.log('Создан пользователь:', user)
-        alert('Пользователь успешно зарегистрирован!')
-        // Очистка формы
-        this.username = ''
-        this.password = ''
+        await register(this.username, this.password)
+
+        alert("Регистрация успешна!")
+        this.router.push("/login")
       } catch (err) {
         console.error(err)
-        alert('Ошибка при регистрации')
+        alert(err.response?.data?.detail || "Ошибка при регистрации")
       }
     }
   }

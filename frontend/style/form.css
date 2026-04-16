@@ -36,3 +36,56 @@
 .form-container button:hover {
   background: #2980b9;
 }
+.link-button {
+  background: none;
+  border: none;
+  color: #3498db;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  font-size: 14px;
+}
+.link-button:hover {
+  color: #2980b9;
+}
+.operator-tag {
+  background: #334155;
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin-right: 6px;
+}
+
+.operator-tag button {
+  margin-left: 5px;
+  background: transparent;
+  border: none;
+  color: red;
+  cursor: pointer;
+}
+.operators {
+  margin-top: 8px;
+}
+
+.operator-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #334155;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin-right: 6px;
+  font-size: 13px;
+}
+
+.remove-btn {
+  background: transparent;
+  border: none;
+  color: #ff4d4f;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.remove-btn:hover {
+  color: red;
+}

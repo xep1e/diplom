@@ -1,19 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.services.user_service import create_user, get_users, get_user, update_user, delete_user, verify_password
 from app.db.database import SessionLocal
 from app.db.models.user import UserRole, User
+from app.services.user_service import create_user, get_user, get_users, update_user, delete_user
+from app.services.auth_service import verify_password, create_access_token, SECRET_KEY
 from pydantic import BaseModel
-from passlib.hash import pbkdf2_sha256
+from fastapi.security import HTTPBearer
+from jose import jwt
 
-router = APIRouter(tags=["Users"])
+router = APIRouter()
 
-# Pydantic-модель для регистрации (роль не передаётся!)
-class UserCreate(BaseModel):
-    username: str
-    password: str
+security = HTTPBearer()
 
-# Dependency для сессии БД
+
+# ================= DB =================
 def get_db():
     db = SessionLocal()
     try:
@@ -22,46 +22,10 @@ def get_db():
         db.close()
 
 
-# Регистрация оператора
-@router.post("/register")
-def register(user: UserCreate, db: Session = Depends(get_db)):
-    """
-    Создаёт пользователя с ролью operator.
-    """
-    return create_user(db, username=user.username, password=user.password, role=UserRole.operator)
-
-
-# Получить всех пользователей
-@router.get("/")
-def list_users(db: Session = Depends(get_db)):
-    return get_users(db)
-
-
-# Получить конкретного пользователя
-@router.get("/{user_id}")
-def read_user(user_id: int, db: Session = Depends(get_db)):
-    user = get_user(db, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
-
-
-# Обновить пользователя (только username и password)
-@router.put("/{user_id}")
-def edit_user(user_id: int, user: UserCreate, db: Session = Depends(get_db)):
-    updated_user = update_user(db, user_id, username=user.username, password=user.password)
-    if not updated_user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return updated_user
-
-
-# Удалить пользователя
-@router.delete("/{user_id}")
-def remove_user(user_id: int, db: Session = Depends(get_db)):
-    success = delete_user(db, user_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="User not found")
-    return {"status": "deleted"}
+# ================= SCHEMAS =================
+class UserCreate(BaseModel):
+    username: str
+    password: str
 
 
 class UserLogin(BaseModel):
@@ -69,13 +33,83 @@ class UserLogin(BaseModel):
     password: str
 
 
+# ================= AUTH =================
+def get_current_user(token=Depends(security), db: Session = Depends(get_db)):
+    try:
+        payload = jwt.decode(token.credentials, SECRET_KEY, algorithms=["HS256"])
+        user_id = int(payload.get("sub"))
+    except:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    return user
+
+
+# ================= ROUTES =================
+
+@router.post("/register")
+def register(user: UserCreate, db: Session = Depends(get_db)):
+    return create_user(db, user.username, user.password, UserRole.operator)
+
+
 @router.post("/login")
 def login(user: UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.username == user.username).first()
+
     if not db_user or not verify_password(user.password, db_user.password_hash):
         raise HTTPException(status_code=401, detail="Неверный логин или пароль")
 
-    if db_user.role != UserRole.operator:
-        raise HTTPException(status_code=403, detail="Доступ запрещён для этой роли")
+    token = create_access_token({
+        "sub": str(db_user.id),
+        "username": db_user.username,
+        "role": db_user.role.value
+    })
 
-    return {"id": db_user.id, "username": db_user.username, "role": db_user.role.value}
+    return {
+        "access_token": token,
+        "token_type": "bearer"
+    }
+
+
+@router.get("/me")
+def get_me(current_user: User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "role": current_user.role.value
+    }
+
+
+@router.get("/")
+def list_users(db: Session = Depends(get_db)):
+    return get_users(db)
+
+
+@router.get("/{user_id}")
+def read_user(user_id: int, db: Session = Depends(get_db)):
+    user = get_user(db, user_id)
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return user
+
+
+@router.put("/{user_id}")
+def edit_user(user_id: int, user: UserCreate, db: Session = Depends(get_db)):
+    updated = update_user(db, user_id, user.username, user.password)
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return updated
+
+
+@router.delete("/{user_id}")
+def remove_user(user_id: int, db: Session = Depends(get_db)):
+    success = delete_user(db, user_id)
+
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {"status": "deleted"}
