@@ -22,7 +22,6 @@ async def handle_message(message: types.Message):
             text=message.text or ""
         )
 
-        # 🔥 ДОБАВЬ ВОТ ЭТО
         await manager.broadcast(chat_id, {
             "id": msg.id,
             "text": msg.text,

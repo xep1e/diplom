@@ -32,7 +32,6 @@ def get_or_create_chat(db: Session, client: Client):
     if participant:
         return participant.chat_id
 
-    # 👇 название чата = имя клиента
     chat = Chat(title=client.name or "Клиент")
     db.add(chat)
     db.commit()
@@ -59,4 +58,4 @@ def save_message(db: Session, chat_id: int, client_id: int, text: str):
     db.commit()
     db.refresh(msg)
 
-    return msg  # 🔥 ВАЖНО
+    return msg
