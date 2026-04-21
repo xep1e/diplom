@@ -1,8 +1,11 @@
 from sqlalchemy.orm import Session
 from app.db.models.client import Client, ClientSource
-from app.db.models.chat import Chat
+from app.db.models.chat import Chat, ChatStatus
 from app.db.models.chat_participant import ChatParticipant, ParticipantRole
 from app.db.models.message import Message
+from datetime import datetime, timezone, timedelta
+
+MSK = timezone(timedelta(hours=3))
 
 
 def get_or_create_client(db: Session, tg_user):
@@ -25,14 +28,77 @@ def get_or_create_client(db: Session, tg_user):
 
 
 def get_or_create_chat(db: Session, client: Client):
-    participant = db.query(ChatParticipant).filter_by(
-        client_id=client.id
+    """Получить активный чат клиента или создать новый"""
+
+    # Ищем активный чат (не закрытый)
+    active_participant = db.query(ChatParticipant).join(Chat).filter(
+        ChatParticipant.client_id == client.id,
+        Chat.status != ChatStatus.closed,
+        Chat.is_active == True
     ).first()
 
-    if participant:
-        return participant.chat_id
+    if active_participant:
+        # Возвращаем существующий активный чат
+        chat = db.query(Chat).filter(Chat.id == active_participant.chat_id).first()
+        if chat.status == ChatStatus.waiting:
+            chat.status = ChatStatus.new
+            db.commit()
+        return active_participant.chat_id
 
-    chat = Chat(title=client.name or "Клиент")
+    # Проверяем, были ли у клиента закрытые чаты
+    closed_participants = db.query(ChatParticipant).join(Chat).filter(
+        ChatParticipant.client_id == client.id,
+        Chat.status == ChatStatus.closed
+    ).order_by(Chat.created_at.desc()).all()
+
+    if closed_participants:
+        # Есть закрытые чаты - переоткрываем последний
+        last_closed_chat = db.query(Chat).filter(Chat.id == closed_participants[0].chat_id).first()
+
+        # Создаем новый чат как переоткрытие
+        new_chat = Chat(
+            title=client.name or "Клиент",
+            status=ChatStatus.new,
+            is_active=True,
+            reopened_at=datetime.now(MSK)
+        )
+        db.add(new_chat)
+        db.commit()
+        db.refresh(new_chat)
+
+        # Добавляем клиента в новый чат
+        cp = ChatParticipant(
+            chat_id=new_chat.id,
+            client_id=client.id,
+            role=ParticipantRole.client
+        )
+        db.add(cp)
+        db.commit()
+
+        # Если был оператор в последнем чате, назначаем его снова
+        old_operator = db.query(ChatParticipant).filter(
+            ChatParticipant.chat_id == last_closed_chat.id,
+            ChatParticipant.role == ParticipantRole.operator
+        ).first()
+
+        if old_operator:
+            new_cp = ChatParticipant(
+                chat_id=new_chat.id,
+                user_id=old_operator.user_id,
+                role=ParticipantRole.operator
+            )
+            db.add(new_cp)
+            db.commit()
+
+        print(f"🔄 Переоткрыт чат #{new_chat.id} для клиента {client.name} (был чат #{last_closed_chat.id})")
+        return new_chat.id
+
+    # Создаем новый чат (первое обращение)
+    chat = Chat(
+        title=client.name or "Клиент",
+        status=ChatStatus.new,
+        is_active=True
+    )
     db.add(chat)
     db.commit()
     db.refresh(chat)
@@ -42,17 +108,22 @@ def get_or_create_chat(db: Session, client: Client):
         client_id=client.id,
         role=ParticipantRole.client
     )
-
     db.add(cp)
     db.commit()
 
+    print(f"🆕 Новый чат #{chat.id} от клиента {client.name}")
+
     return chat.id
 
-def save_message(db: Session, chat_id: int, client_id: int, text: str):
+
+def save_message(db: Session, chat_id: int, client_id: int, text: str, media_url: str = None, media_type: str = None):
+    """Сохранить сообщение"""
     msg = Message(
         chat_id=chat_id,
         sender_client_id=client_id,
-        text=text
+        text=text,
+        media_url=media_url,
+        media_type=media_type
     )
     db.add(msg)
     db.commit()

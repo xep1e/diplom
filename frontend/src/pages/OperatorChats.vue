@@ -1,104 +1,171 @@
 <template>
-  <div class="chat-layout">
-
-    <!-- LEFT -->
-    <div class="chat-list">
-      <div
-        v-for="chat in chats"
-        :key="chat.id"
-        class="chat-item"
-        @click="openChat(chat)"
-      >
-        <b>{{ chat.title }}</b>
-        <p class="last">{{ chat.last_message }}</p>
+  <div class="operator-chats">
+    <div class="header">
+      <h2>📋 Мои чаты</h2>
+      <div class="tabs">
+        <button 
+          class="tab" 
+          :class="{ active: activeTab === 'active' }"
+          @click="activeTab = 'active'"
+        >
+          Активные ({{ activeChats.length }})
+        </button>
+        <button 
+          class="tab" 
+          :class="{ active: activeTab === 'closed' }"
+          @click="activeTab = 'closed'"
+        >
+          Закрытые ({{ closedChats.length }})
+        </button>
       </div>
     </div>
 
-    <!-- RIGHT -->
-    <div class="chat-window">
-      <div v-if="activeChat">
-        <h2>{{ activeChat.title }}</h2>
-
-        <div class="messages">
-          <div v-for="m in messages" :key="m.id">
-            {{ m.text }}
+    <div class="chats-list">
+      <div
+        v-for="chat in displayedChats"
+        :key="chat.id"
+        class="chat-card"
+        :class="{ closed: chat.status === 'closed' }"
+        @click="$emit('select-chat', chat)"
+      >
+        <div class="chat-info">
+          <div class="chat-title">
+            {{ chat.title }}
+            <span v-if="chat.status === 'closed'" class="closed-badge">Закрыт</span>
+            <span v-if="chat.status === 'new'" class="new-badge">Новый</span>
           </div>
+          <div class="chat-preview">{{ chat.last_message || 'Нет сообщений' }}</div>
+        </div>
+        <div class="chat-meta">
+          <div class="chat-time">{{ formatTime(chat.updated_at) }}</div>
         </div>
       </div>
-
-      <div v-else>
-        Выбери чат 👈
-      </div>
     </div>
-
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import axios from 'axios'
+import { ref, computed } from 'vue'
 
-const chats = ref([])
-const activeChat = ref(null)
-const messages = ref([])
+const props = defineProps({
+  chats: Array
+})
 
-const loadChats = async () => {
-  const res = await axios.get('http://127.0.0.1:8000/operator/chats/', {
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem('token')}`
-    }
-  })
+const activeTab = ref('active')
 
-  chats.value = res.data
+const activeChats = computed(() => {
+  return (props.chats || []).filter(c => c.status !== 'closed')
+})
+
+const closedChats = computed(() => {
+  return (props.chats || []).filter(c => c.status === 'closed')
+})
+
+const displayedChats = computed(() => {
+  return activeTab.value === 'active' ? activeChats.value : closedChats.value
+})
+
+const formatTime = (date) => {
+  if (!date) return ''
+  const d = new Date(date)
+  const now = new Date()
+  const diff = now - d
+  
+  if (diff < 60000) return 'только что'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)} мин назад`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)} ч назад`
+  return d.toLocaleDateString()
 }
-
-const openChat = async (chat) => {
-  activeChat.value = chat
-
-  const res = await axios.get(
-    `http://127.0.0.1:8000/chats/${chat.id}/messages`,
-    {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      }
-    }
-  )
-
-  messages.value = res.data
-}
-
-onMounted(loadChats)
 </script>
 
-<style>
-.chat-layout {
+<style scoped>
+.operator-chats {
+  height: 100%;
   display: flex;
-  height: 100vh;
+  flex-direction: column;
 }
 
-.chat-list {
-  width: 300px;
-  border-right: 1px solid #ddd;
+.header {
+  padding: 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.header h2 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tab {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.tab.active {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+}
+
+.chats-list {
+  flex: 1;
   overflow-y: auto;
 }
 
-.chat-item {
-  padding: 10px;
+.chat-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
   cursor: pointer;
-  border-bottom: 1px solid #eee;
+  transition: background 0.2s;
 }
 
-.chat-item:hover {
-  background: #f5f5f5;
+.chat-card:hover {
+  background: rgba(255,255,255,0.1);
 }
 
-.last {
+.chat-card.closed {
+  opacity: 0.7;
+}
+
+.chat-title {
+  font-weight: 500;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.closed-badge {
+  font-size: 10px;
+  background: #95a5a6;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.new-badge {
+  font-size: 10px;
+  background: #e74c3c;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.chat-preview {
   font-size: 12px;
-  color: gray;
+  opacity: 0.7;
 }
 
-.chat-window {
-  flex: 1;
-  padding: 20px;
+.chat-time {
+  font-size: 11px;
+  opacity: 0.5;
 }
 </style>

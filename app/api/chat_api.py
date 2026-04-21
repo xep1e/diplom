@@ -27,19 +27,28 @@ def get_messages(chat_id: int, db: Session = Depends(get_db)):
 
     for m in msgs:
         sender = None
+        sender_type = None
 
-        if m.sender_user_id:
+        if m.sender_user_id is not None:
             user = db.query(User).filter(User.id == m.sender_user_id).first()
-            sender = user.username if user else "unknown"
-
-        elif m.sender_client_id:
+            if user:
+                sender = user.username
+                sender_type = "operator"
+        elif m.sender_client_id is not None:
             client = db.query(Client).filter(Client.id == m.sender_client_id).first()
-            sender = client.name if client else "client"
+            if client:
+                sender = client.name
+                sender_type = "client"
+        else:
+            continue
 
         result.append({
             "id": m.id,
             "text": m.text,
-            "sender": sender
+            "sender": sender,
+            "sender_type": sender_type,
+            "media_url": m.media_url,  # Это будет ключ кэша Redis
+            "media_type": m.media_type
         })
 
     return result

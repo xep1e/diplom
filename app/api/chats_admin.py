@@ -8,7 +8,7 @@ from app.db.models.chat import Chat
 from app.db.models.user import User, UserRole
 from app.db.models.chat_participant import ChatParticipant, ParticipantRole
 from app.api.userApi import get_current_user
-
+from app.bot.bot import bot
 
 router = APIRouter(prefix="/admin/chats", tags=["admin-chats"])
 
@@ -20,20 +20,21 @@ def get_db():
     finally:
         db.close()
 
+
 class RemoveRequest(BaseModel):
     chat_id: int
     username: str
-# 🔥 DTO
+
+
 class AssignRequest(BaseModel):
     chat_id: int
-    username: str   # 👈 теперь по логину!
+    username: str
 
 
-# 🔥 все чаты с инфой
 @router.get("/")
 def get_all_chats(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     if current_user.role != UserRole.admin:
         raise HTTPException(status_code=403, detail="Admins only")
@@ -65,16 +66,17 @@ def get_all_chats(
             "id": chat.id,
             "title": chat.title,
             "status": chat.status.value,
-            "clients": clients,        # 🔥 ВСЕГДА массив
-            "operators": operators     # 🔥 ВСЕГДА массив
+            "clients": clients,
+            "operators": operators
         })
 
     return result
 
+
 @router.get("/operators")
 def get_operators(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     if current_user.role != UserRole.admin:
         raise HTTPException(status_code=403, detail="Admins only")
@@ -88,12 +90,13 @@ def get_operators(
         }
         for u in users
     ]
-# 🎯 назначить оператора (по username)
+
+
 @router.post("/assign")
-def assign_operator(
-    data: AssignRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+async def assign_operator(
+        data: AssignRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     if current_user.role != UserRole.admin:
         raise HTTPException(status_code=403, detail="Admins only")
@@ -106,7 +109,7 @@ def assign_operator(
     if not operator:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # ❗ проверяем — уже назначен?
+    # Проверяем - уже назначен?
     exists = db.query(ChatParticipant).filter_by(
         chat_id=chat.id,
         user_id=operator.id
@@ -124,13 +127,40 @@ def assign_operator(
     db.add(cp)
     db.commit()
 
+    # Обновляем статус часа
+    if chat.status == "new":
+        chat.status = "in_progress"
+        db.commit()
+
+    # Отправляем уведомление клиенту в Telegram
+    client_part = db.query(ChatParticipant).filter(
+        ChatParticipant.chat_id == chat.id,
+        ChatParticipant.client_id.isnot(None)
+    ).first()
+
+    if client_part:
+        client = db.query(Client).filter(Client.id == client_part.client_id).first()
+        if client and client.external_id:
+            try:
+                await bot.send_message(
+                    chat_id=client.external_id,
+                    text=f"👨‍💼 *Вам назначен оператор {operator.username}!*\n\n"
+                         f"Специалист скоро ответит на ваше сообщение.\n"
+                         f"Пожалуйста, ожидайте.",
+                    parse_mode="Markdown"
+                )
+                print(f"✅ Уведомление отправлено клиенту {client.name} о назначении оператора {operator.username}")
+            except Exception as e:
+                print(f"❌ Ошибка отправки уведомления клиенту: {e}")
+
     return {"status": "assigned", "chat_id": chat.id, "operator": operator.username}
+
 
 @router.post("/remove")
 def remove_operator(
-    data: RemoveRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+        data: RemoveRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     if current_user.role != UserRole.admin:
         raise HTTPException(status_code=403, detail="Admins only")
