@@ -52,10 +52,7 @@ def get_or_create_chat(db: Session, client: Client):
     ).order_by(Chat.created_at.desc()).all()
 
     if closed_participants:
-        # Есть закрытые чаты - переоткрываем последний
-        last_closed_chat = db.query(Chat).filter(Chat.id == closed_participants[0].chat_id).first()
-
-        # Создаем новый чат как переоткрытие
+        # Есть закрытые чаты - создаем новый чат как переоткрытие
         new_chat = Chat(
             title=client.name or "Клиент",
             status=ChatStatus.new,
@@ -66,7 +63,7 @@ def get_or_create_chat(db: Session, client: Client):
         db.commit()
         db.refresh(new_chat)
 
-        # Добавляем клиента в новый чат
+        # Добавляем только клиента в новый чат (без оператора!)
         cp = ChatParticipant(
             chat_id=new_chat.id,
             client_id=client.id,
@@ -75,25 +72,12 @@ def get_or_create_chat(db: Session, client: Client):
         db.add(cp)
         db.commit()
 
-        # Если был оператор в последнем чате, назначаем его снова
-        old_operator = db.query(ChatParticipant).filter(
-            ChatParticipant.chat_id == last_closed_chat.id,
-            ChatParticipant.role == ParticipantRole.operator
-        ).first()
+        # ❌ НЕ назначаем оператора автоматически
 
-        if old_operator:
-            new_cp = ChatParticipant(
-                chat_id=new_chat.id,
-                user_id=old_operator.user_id,
-                role=ParticipantRole.operator
-            )
-            db.add(new_cp)
-            db.commit()
-
-        print(f"🔄 Переоткрыт чат #{new_chat.id} для клиента {client.name} (был чат #{last_closed_chat.id})")
+        print(f"🔄 Переоткрыт чат #{new_chat.id} для клиента {client.name} (без назначенного оператора)")
         return new_chat.id
 
-    # Создаем новый чат (первое обращение)
+    # Создаем новый чат (первое обращение) - тоже без оператора
     chat = Chat(
         title=client.name or "Клиент",
         status=ChatStatus.new,
