@@ -11,6 +11,7 @@ from app.api.photo_api import router as photo_router
 from app.redis_client import redis_manager
 from app.api.metrics_api import router as metrics_router
 from app.api.chat_actions_api import router as chat_actions_router
+from app.api.bitrix_tasks import router as task_router
 
 import asyncio
 from app.api.chats_admin import router as admin_chats_router
@@ -53,6 +54,7 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
+app.include_router(task_router)
 # API
 app.include_router(user_router, prefix="/api/users", tags=["users"])
 app.include_router(admin_chats_router, prefix="", tags=["admin-chats"])

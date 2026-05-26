@@ -17,3 +17,7 @@ class User(Base):
 
     role = Column(Enum(UserRole), default=UserRole.operator)
     is_active = Column(Boolean, default=True)
+
+    bitrix_user_id = Column(Integer, nullable=True)
+    bitrix_access_token = Column(String(512), nullable=True)
+    bitrix_refresh_token = Column(String(512), nullable=True)
