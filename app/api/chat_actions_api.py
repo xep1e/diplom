@@ -24,7 +24,7 @@ def get_db():
 
 
 @router.post("/{chat_id}/close")
-def close_chat(
+async def close_chat(
         chat_id: int,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
@@ -41,6 +41,18 @@ def close_chat(
     if chat.status == ChatStatus.closed:
         return {"status": "already_closed", "message": "Чат уже закрыт"}
 
+    # Получаем клиента для отправки запроса оценки ДО закрытия
+    client_part = db.query(ChatParticipant).filter(
+        ChatParticipant.chat_id == chat_id,
+        ChatParticipant.client_id != None
+    ).first()
+
+    client_external_id = None
+    if client_part:
+        client = db.query(Client).filter(Client.id == client_part.client_id).first()
+        if client:
+            client_external_id = client.external_id
+
     # Закрываем чат
     chat.status = ChatStatus.closed
     chat.closed_at = datetime.now(MSK)
@@ -49,13 +61,22 @@ def close_chat(
     db.commit()
 
     # Отправляем уведомление через WebSocket
-    import asyncio
-    asyncio.create_task(manager.broadcast(chat_id, {
+    await manager.broadcast(chat_id, {
         "type": "chat_closed",
         "chat_id": chat_id,
         "closed_by": current_user.username,
         "closed_at": chat.closed_at.isoformat()
-    }))
+    })
+
+    # ✅ Отправляем запрос на оценку, если есть клиент
+    if client_external_id:
+        from app.bot.handlers_bot.handlerBotRating import send_rating_request
+        from app.bot.bot import bot
+
+        # Запускаем в фоне, чтобы не блокировать ответ
+        import asyncio
+        asyncio.create_task(send_rating_request(chat_id, client_external_id, bot))
+        print(f"📊 Отправлен запрос на оценку для чата {chat_id} клиенту {client_external_id}")
 
     return {
         "status": "closed",
@@ -63,7 +84,6 @@ def close_chat(
         "closed_by": current_user.username,
         "closed_at": chat.closed_at
     }
-
 
 @router.post("/reopen")
 def reopen_chat(

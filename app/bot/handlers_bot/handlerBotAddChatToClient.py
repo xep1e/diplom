@@ -19,27 +19,47 @@ async def handle_message(message: types.Message):
         tg_user = message.from_user
         client = get_or_create_client(db, tg_user)
 
-        # Проверяем, был ли уже чат у клиента
-        existing_chat = db.query(ChatParticipant).join(Chat).filter(
+        # Проверяем, есть ли уже сообщения от клиента в этом чате
+        # Находим или создаем чат (без отправки уведомления пока)
+
+        # Сначала проверяем, есть ли активный чат у клиента
+        active_participant = db.query(ChatParticipant).join(Chat).filter(
             ChatParticipant.client_id == client.id,
-            Chat.status != ChatStatus.closed
+            Chat.status != ChatStatus.closed,
+            Chat.is_active == True
         ).first()
 
-        # Получаем или создаем чат
-        chat_id = get_or_create_chat(db, client)
+        is_first_message = False
 
-        # Определяем, новый ли чат
-        is_new_chat = existing_chat is None
+        if not active_participant:
+            # Новый чат - первое сообщение
+            is_first_message = True
+            chat_id = get_or_create_chat(db, client)
+        else:
+            chat_id = active_participant.chat_id
+            # Проверяем, есть ли уже сообщения от клиента в этом чате
+            existing_messages = db.query(Message).filter(
+                Message.chat_id == chat_id,
+                Message.sender_client_id == client.id
+            ).first()
+
+            # Если нет ни одного сообщения от клиента - это первое
+            is_first_message = (existing_messages is None)
+
+            # Если чат в статусе waiting, переводим в new
+            chat = db.query(Chat).filter(Chat.id == chat_id).first()
+            if chat.status == ChatStatus.waiting:
+                chat.status = ChatStatus.new
+                db.commit()
 
         # Получаем чат для проверки статуса
         chat = db.query(Chat).filter(Chat.id == chat_id).first()
-        is_reopened = chat and chat.reopened_at is not None and chat.status == ChatStatus.new
 
+        # Обработка медиа (фото и т.д.)
         media_url = None
         media_type = None
         text = message.text or ""
 
-        # Если есть фото
         if message.photo:
             photo = message.photo[-1]
             file = await message.bot.get_file(photo.file_id)
@@ -73,87 +93,19 @@ async def handle_message(message: types.Message):
             "media_type": media_type
         })
 
-        # Отправляем ответ клиенту ТОЛЬКО для новых чатов или переоткрытых
-        if is_new_chat or is_reopened:
+        # ✅ ОТПРАВЛЯЕМ ОТВЕТ КЛИЕНТУ ТОЛЬКО ДЛЯ ПЕРВОГО СООБЩЕНИЯ
+        if is_first_message:
             await message.answer(
                 "✅ *Сообщение получено!* Оператор ответит вам в ближайшее время.",
                 parse_mode="Markdown"
             )
-        # Для существующих чатов - тишина, только если не было сообщения долгое время
+            print(f"📨 Отправлено приветственное сообщение клиенту {client.name} (первое сообщение)")
         else:
-            # Проверяем, когда было последнее сообщение от оператора
-            last_operator_msg = db.query(Message).filter(
-                Message.chat_id == chat_id,
-                Message.sender_user_id.isnot(None)
-            ).order_by(Message.created_at.desc()).first()
-
-            # Если оператор не отвечал больше 5 минут, напомним
-            if last_operator_msg:
-                from datetime import datetime, timedelta
-                time_since_last = datetime.utcnow() - last_operator_msg.created_at
-                if time_since_last > timedelta(minutes=5):
-                    await message.answer(
-                        "⏳ *Сообщение доставлено!* Оператор скоро ответит.",
-                        parse_mode="Markdown"
-                    )
-            # В остальных случаях - никакого ответа
+            # Для остальных сообщений - тишина
+            print(f"🔇 Клиенту {client.name} не отправляем ответ (не первое сообщение)")
 
     except Exception as e:
         print(f"Ошибка в handle_message: {e}")
-        await message.answer("❌ Произошла ошибка. Попробуйте позже.")
-    finally:
-        db.close()
-
-
-@router.message(lambda message: message.text == "/start")
-async def handle_start(message: types.Message):
-    """Обработка команды /start"""
-    db = SessionLocal()
-
-    try:
-        tg_user = message.from_user
-        client = get_or_create_client(db, tg_user)
-
-        # Проверяем, есть ли активный чат
-        active_chat = db.query(ChatParticipant).join(Chat).filter(
-            ChatParticipant.client_id == client.id,
-            Chat.status != ChatStatus.closed,
-            Chat.is_active == True
-        ).first()
-
-        if active_chat:
-            chat = db.query(Chat).filter(Chat.id == active_chat.chat_id).first()
-
-            # Проверяем, есть ли назначенный оператор
-            operator_assigned = db.query(ChatParticipant).filter(
-                ChatParticipant.chat_id == chat.id,
-                ChatParticipant.role == ParticipantRole.operator
-            ).first()
-
-            if operator_assigned:
-                await message.answer(
-                    "💬 *У вас уже есть активный диалог!*\n\n"
-                    f"Оператор {operator_assigned.user.username if hasattr(operator_assigned.user, 'username') else 'уже назначен'} скоро ответит.\n"
-                    f"Если у вас новый вопрос, просто напишите его ниже.",
-                    parse_mode="Markdown"
-                )
-            else:
-                await message.answer(
-                    "💬 *У вас уже есть активный диалог!*\n\n"
-                    "Оператор будет назначен в ближайшее время.\n"
-                    "Пожалуйста, ожидайте ответа.",
-                    parse_mode="Markdown"
-                )
-        else:
-            await message.answer(
-                "🤖 *Здравствуйте!*\n\n"
-                "Я бот технической поддержки.\n\n"
-                "Опишите вашу проблему, и наш оператор свяжется с вами в ближайшее время.\n\n"
-                "✏️ *Напишите ваше сообщение ниже:*",
-                parse_mode="Markdown"
-            )
-    except Exception as e:
-        print(f"Ошибка в /start: {e}")
         await message.answer("❌ Произошла ошибка. Попробуйте позже.")
     finally:
         db.close()

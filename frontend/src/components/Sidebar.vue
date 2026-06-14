@@ -30,7 +30,9 @@ onMounted(loadUser)
       <router-link to="/chat">Чат</router-link>
       <router-link to="/metrics">Метрики</router-link>
       <router-link to="/tasks">Задачи</router-link>
-
+      <router-link v-if="user?.role === 'admin'" to="/admin/bitrix">
+        👤 Bitrix сотрудники
+      </router-link>
       <router-link v-if="user?.role === 'admin'" to="/admin/chats">
         Распределение чатов
       </router-link>

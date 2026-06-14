@@ -9,9 +9,9 @@ import Metrics from './pages/Metrics.vue'
 import Tasks from './pages/Tasks.vue'
 import AdminChats from './pages/AdminChats.vue'
 import OperatorChats from './pages/OperatorChats.vue'
-
+import Profile from './pages/profile.vue'
 import { getMe } from './api/authApi'
-
+import AdminBitrix from './pages/AdminBitrix.vue'
 const routes = [
   { path: '/', component: Login },
   { path: '/login', component: Login },
@@ -20,7 +20,12 @@ const routes = [
   { path: '/metrics', component: Metrics },
   { path: '/tasks', component: Tasks },
   { path: '/my-chats', component: OperatorChats},
-
+  {path: '/profile', component: Profile },
+{
+    path: '/admin/bitrix',
+    component: AdminBitrix,
+    meta: { role: 'admin' }
+  },
   {
     path: '/admin/chats',
     component: AdminChats,

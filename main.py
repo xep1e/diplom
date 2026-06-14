@@ -12,6 +12,7 @@ from app.redis_client import redis_manager
 from app.api.metrics_api import router as metrics_router
 from app.api.chat_actions_api import router as chat_actions_router
 from app.api.bitrix_tasks import router as task_router
+from app.api import bitrix_admin  # 👈 Добавить импорт
 
 import asyncio
 from app.api.chats_admin import router as admin_chats_router
@@ -66,6 +67,7 @@ app.include_router(photo_router, prefix="", tags=["photo"])
 app.include_router(metrics_router, prefix="", tags=["metrics"])
 app.include_router(chat_actions_router, prefix="", tags=["chat-actions"])
 
+app.include_router(bitrix_admin.router)
 
 @app.get("/")
 def root():

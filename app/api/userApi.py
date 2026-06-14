@@ -76,7 +76,9 @@ def get_me(current_user: User = Depends(get_current_user)):
     return {
         "id": current_user.id,
         "username": current_user.username,
-        "role": current_user.role.value
+        "role": current_user.role.value,
+        "bitrix_user_id": current_user.bitrix_user_id,  # 👈 добавляем
+        "bitrix_connected": current_user.bitrix_user_id is not None  # 👈 флаг
     }
 
 
