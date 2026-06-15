@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+import os
+import asyncio
 
 from app.api.userApi import router as user_router
 from app.bot import setup_bot
@@ -12,13 +13,16 @@ from app.redis_client import redis_manager
 from app.api.metrics_api import router as metrics_router
 from app.api.chat_actions_api import router as chat_actions_router
 from app.api.bitrix_tasks import router as task_router
-from app.api import bitrix_admin  # 👈 Добавить импорт
-
-import asyncio
+from app.api import bitrix_admin
+from app.api.telegram_connect_api import router as telegram_router
 from app.api.chats_admin import router as admin_chats_router
 from app.api.operator_chats import router as operator_chats_router
 from app.ws.chat_socket import router as ws_router
 from app.api.chat_api import router as chat_router
+from app.api.max_webhook import router as max_router  # 👈 ДОБАВИТЬ
+
+# 👇 ИМПОРТ ДЛЯ MAX
+from app.bot.max_bot import init_max_bot
 
 
 @asynccontextmanager
@@ -26,6 +30,15 @@ async def lifespan(app: FastAPI):
     # 🚀 старт
     await redis_manager.connect()
     setup_bot()
+
+    # 👇 ИНИЦИАЛИЗАЦИЯ MAX БОТА
+    max_token = os.getenv("MAX_BOT_TOKEN")
+    if max_token:
+        init_max_bot(max_token)
+        print(f"✅ MAX бот инициализирован")
+    else:
+        print(f"⚠️ MAX_BOT_TOKEN не найден в .env")
+
     task = asyncio.create_task(dp.start_polling(bot))
 
     yield
@@ -66,8 +79,12 @@ app.include_router(upload_router, prefix="", tags=["upload"])
 app.include_router(photo_router, prefix="", tags=["photo"])
 app.include_router(metrics_router, prefix="", tags=["metrics"])
 app.include_router(chat_actions_router, prefix="", tags=["chat-actions"])
-
+app.include_router(telegram_router)
 app.include_router(bitrix_admin.router)
+
+# 👇 ДОБАВИТЬ РОУТЕР MAX
+app.include_router(max_router)
+
 
 @app.get("/")
 def root():

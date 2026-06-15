@@ -6,15 +6,14 @@ from app.db.models.chat import Chat, ChatStatus
 from app.ws.ws_auth import get_user_from_token
 from app.bot.bot import bot
 from app.db.models.chat_participant import ChatParticipant
-from app.db.models.client import Client
+from app.db.models.client import Client, ClientSource  # 👈 ДОБАВИТЬ ClientSource
 from app.bot.handlers_bot.handlerBotRating import send_rating_request
 from datetime import datetime
 from datetime import datetime, timezone, timedelta
 
-
-
 router = APIRouter()
 MSK = timezone(timedelta(hours=3))
+
 
 @router.websocket("/ws/chat/{chat_id}")
 async def chat_socket(websocket: WebSocket, chat_id: int):
@@ -54,10 +53,27 @@ async def chat_socket(websocket: WebSocket, chat_id: int):
                 if client_part:
                     client = db.query(Client).filter(Client.id == client_part.client_id).first()
                     if client and client.external_id:
+                        # 👇 ОТПРАВКА В TELEGRAM (существующий код)
                         await bot.send_message(
                             chat_id=client.external_id,
                             text=f"👨‍💻 {user['username']}:\n{data['text']}"
                         )
+
+                        # 👇👇👇 НОВЫЙ БЛОК ДЛЯ MAX 👇👇👇
+                        # Отправляем в MAX, если клиент из MAX
+                        if client.source == ClientSource.max:
+                            from app.bot.max_bot import max_bot
+                            if max_bot:
+                                try:
+                                    await max_bot.send_message_to_user(
+                                        user_id=int(client.external_id),  # external_id содержит user_id из MAX
+                                        text=data['text'],
+                                        operator_name=user['username']
+                                    )
+                                    print(f"✅ Сообщение отправлено в MAX пользователю {client.external_id}")
+                                except Exception as e:
+                                    print(f"❌ Ошибка отправки в MAX: {e}")
+                        # 👆👆👆 КОНЕЦ БЛОКА ДЛЯ MAX 👆👆👆
 
                 await manager.broadcast(chat_id, {
                     "id": msg.id,
@@ -85,8 +101,27 @@ async def chat_socket(websocket: WebSocket, chat_id: int):
                     if client_part:
                         client = db.query(Client).filter(Client.id == client_part.client_id).first()
                         if client and client.external_id:
-                            # Отправляем запрос на оценку
+                            # Отправляем запрос на оценку в Telegram
                             await send_rating_request(chat_id, client.external_id, bot)
+
+                            # 👇👇👇 ДЛЯ MAX ТОЖЕ МОЖНО ОТПРАВИТЬ ЗАПРОС НА ОЦЕНКУ 👇👇👇
+                            if client.source == ClientSource.max:
+                                from app.bot.max_bot import max_bot
+                                if max_bot:
+                                    # Отправляем клавиатуру с оценкой в MAX
+                                    keyboard = {
+                                        "inline_keyboard": [
+                                            [
+                                                {"text": "👍 Хорошо", "callback_data": f"rate_like_{chat_id}"},
+                                                {"text": "👎 Плохо", "callback_data": f"rate_dislike_{chat_id}"}
+                                            ]
+                                        ]
+                                    }
+                                    await max_bot.send_message_to_user(
+                                        user_id=int(client.external_id),
+                                        text="💬 Диалог завершен.\n\nОцените, пожалуйста, качество обслуживания:",
+                                        keyboard=keyboard
+                                    )
 
                     await manager.broadcast(chat_id, {
                         "type": "chat_closed",
