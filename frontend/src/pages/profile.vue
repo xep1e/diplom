@@ -208,7 +208,7 @@ useRoute()
 
 
 const API_URL =
-'http://127.0.0.1:8000'
+'http://185.125.201.136:8000'
 
 
 const user =
