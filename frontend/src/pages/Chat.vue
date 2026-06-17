@@ -319,7 +319,7 @@ return new Date(date).toLocaleString()
 
 const getPhotoUrl=(photoKey)=>{
 
-return `http://185.125.201.136:8000/photo/${encodeURIComponent(photoKey)}`
+return `http://127.0.0.1:8000/photo/${encodeURIComponent(photoKey)}`
 
 }
 
@@ -349,7 +349,7 @@ const loadChats=async()=>{
 const token=localStorage.getItem("token")
 
 const res=await axios.get(
-"http://185.125.201.136:8000/operator/chats/",
+"http://127.0.0.1:8000/operator/chats/",
 {
 headers:{
 Authorization:`Bearer ${token}`
@@ -367,7 +367,7 @@ const loadMessages=async(chatId)=>{
 const token=localStorage.getItem("token")
 
 const res=await axios.get(
-`http://185.125.201.136:8000/chats/${chatId}/messages`,
+`http://127.0.0.1:8000/chats/${chatId}/messages`,
 {
 headers:{
 Authorization:`Bearer ${token}`
@@ -450,7 +450,7 @@ localStorage.getItem(
 )
 
 await axios.post(
-`http://185.125.201.136:8000/chat/${activeChat.value.id}/close`,
+`http://127.0.0.1:8000/chat/${activeChat.value.id}/close`,
 {},
 {
 headers:{
@@ -512,7 +512,7 @@ localStorage.getItem(
 )
 
 await axios.post(
-"http://185.125.201.136:8000/upload/photo",
+"http://127.0.0.1:8000/upload/photo",
 formData,
 {
 headers:{

@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_URL = 'http://185.125.201.136:8000/admin/chats'
+const API_URL = 'http://127.0.0.1:8000/admin/chats'
 
 function authHeader() {
   const token = localStorage.getItem('token')

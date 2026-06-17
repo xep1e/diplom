@@ -90,7 +90,7 @@ import { ref, onMounted, computed } from 'vue'
 import axios from 'axios'
 import { getMe } from '../api/authApi'
 
-const API_URL = 'http://185.125.201.136:8000'
+const API_URL = 'http://127.0.0.1:8000'
 const tasks = ref([])
 const loading = ref(false)
 const error = ref(null)

@@ -245,7 +245,7 @@ const averageRating = ref(0)
 const loadMetrics = async () => {
   try {
     const token = localStorage.getItem('token')
-    const res = await axios.get('http://185.125.201.136:8000/metrics/operators', {
+    const res = await axios.get('http://127.0.0.1:8000/metrics/operators', {
       headers: { Authorization: `Bearer ${token}` }
     })
     operators.value = res.data
@@ -339,7 +339,7 @@ const showOperatorDetails = async (operator) => {
   
   try {
     const token = localStorage.getItem('token')
-    const res = await axios.get(`http://185.125.201.136:8000/metrics/operators/${operator.id}/details`, {
+    const res = await axios.get(`http://127.0.0.1:8000/metrics/operators/${operator.id}/details`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     operatorDetails.value = res.data.last_7_days || []

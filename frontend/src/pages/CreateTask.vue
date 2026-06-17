@@ -146,7 +146,7 @@ const createTask = async () => {
         }
 
         await axios.post(
-            "http://185.125.201.136:8000/create-task",
+            "http://127.0.0.1:8000/create-task",
             formData,
             {
                 headers: {

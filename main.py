@@ -22,8 +22,7 @@ from app.api.chat_api import router as chat_router
 from app.api.max_webhook import router as max_router  # 👈 ДОБАВИТЬ
 
 # 👇 ИМПОРТ ДЛЯ MAX
-from app.bot.max_bot import init_max_bot
-
+from app.bot.max_sender import max_bot
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -32,12 +31,10 @@ async def lifespan(app: FastAPI):
     setup_bot()
 
     # 👇 ИНИЦИАЛИЗАЦИЯ MAX БОТА
-    max_token = os.getenv("MAX_BOT_TOKEN")
-    if max_token:
-        init_max_bot(max_token)
-        print(f"✅ MAX бот инициализирован")
+    if os.getenv("MAX_BOT_TOKEN"):
+        print("✅ MAX бот инициализирован")
     else:
-        print(f"⚠️ MAX_BOT_TOKEN не найден в .env")
+        print("⚠️ MAX_BOT_TOKEN не найден")
 
     task = asyncio.create_task(dp.start_polling(bot))
 
